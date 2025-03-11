@@ -6,6 +6,8 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -18,6 +20,8 @@ class MyApp extends StatelessWidget {
 }
 
 class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -67,6 +71,8 @@ class HomeScreen extends StatelessWidget {
 }
 
 class CalculatorScreen extends StatefulWidget {
+  const CalculatorScreen({super.key});
+
   @override
   _CalculatorScreenState createState() => _CalculatorScreenState();
 }
@@ -152,10 +158,10 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                 SizedBox(width: 20),
                 ElevatedButton(
                   onPressed: calculate,
-                  child: Text('Calculate', style: TextStyle(fontSize: 18)),
                   style: ElevatedButton.styleFrom(
                       padding:
                           EdgeInsets.symmetric(horizontal: 20, vertical: 10)),
+                  child: Text('Calculate', style: TextStyle(fontSize: 18)),
                 ),
               ],
             ),
@@ -175,6 +181,8 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
 }
 
 class GPACalculatorScreen extends StatefulWidget {
+  const GPACalculatorScreen({super.key});
+
   @override
   _GPACalculatorScreenState createState() => _GPACalculatorScreenState();
 }
@@ -284,9 +292,9 @@ class _GPACalculatorScreenState extends State<GPACalculatorScreen> {
             SizedBox(height: 20),
             ElevatedButton(
               onPressed: calculateGPA,
-              child: Text('Recalculate GPA', style: TextStyle(fontSize: 18)),
               style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10)),
+              child: Text('Recalculate GPA', style: TextStyle(fontSize: 18)),
             ),
             SizedBox(height: 20),
             Text(
