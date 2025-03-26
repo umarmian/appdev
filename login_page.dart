@@ -1,34 +1,42 @@
 import 'package:flutter/material.dart';
 import 'database_service.dart';
-import 'login_page.dart';
+import 'home_page.dart';
+import 'signup_page.dart';
 
-class SignupPage extends StatefulWidget {
+class LoginPage extends StatefulWidget {
   @override
-  _SignupPageState createState() => _SignupPageState();
+  _LoginPageState createState() => _LoginPageState();
 }
 
-class _SignupPageState extends State<SignupPage> {
+class _LoginPageState extends State<LoginPage> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  void registerUser() async {
+  void loginUser() async {
     if (_formKey.currentState!.validate()) {
-      await DatabaseService.addUser(emailController.text, passController.text);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Signup successful! Please login.")),
+      bool isAuthenticated = await DatabaseService.authenticateUser(
+        emailController.text,
+        passController.text,
       );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => LoginPage()),
-      );
+
+      if (isAuthenticated) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => HomePage()),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Invalid email or password")));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Signup")),
+      appBar: AppBar(title: Text("Login")),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Form(
@@ -37,7 +45,7 @@ class _SignupPageState extends State<SignupPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Create an Account",
+                "Welcome Back",
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 20),
@@ -82,8 +90,8 @@ class _SignupPageState extends State<SignupPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: registerUser,
-                  child: Text("Register", style: TextStyle(fontSize: 16)),
+                  onPressed: loginUser,
+                  child: Text("Login", style: TextStyle(fontSize: 16)),
                 ),
               ),
               SizedBox(height: 20),
@@ -92,10 +100,10 @@ class _SignupPageState extends State<SignupPage> {
                   onPressed: () {
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (_) => LoginPage()),
+                      MaterialPageRoute(builder: (_) => SignupPage()),
                     );
                   },
-                  child: Text("Already have an account? Login"),
+                  child: Text("Don't have an account? Sign up"),
                 ),
               ),
             ],

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'db_helper.dart';
+import 'database_service.dart';
 
 class RecordsPage extends StatefulWidget {
   @override
@@ -9,33 +9,38 @@ class RecordsPage extends StatefulWidget {
 class _RecordsPageState extends State<RecordsPage> {
   List<Map<String, dynamic>> users = [];
 
-  void loadRecords() async {
-    users = await DBHelper.getUsers();
-    setState(() {});
+  void fetchUsers() async {
+    final data = await DatabaseService.getUsers();
+    setState(() {
+      users = data;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    fetchUsers();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Records")),
-      body: Column(
-        children: [
-          ElevatedButton(onPressed: loadRecords, child: Text("Show Records")),
-          Expanded(
-            child: ListView(
-              children:
-                  users
-                      .map(
-                        (u) => ListTile(
-                          title: Text(u['email']),
-                          subtitle: Text(u['pass']),
-                        ),
-                      )
-                      .toList(),
-            ),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text("User Records")),
+      body:
+          users.isEmpty
+              ? Center(child: CircularProgressIndicator())
+              : ListView.builder(
+                itemCount: users.length,
+                itemBuilder: (context, index) {
+                  return Card(
+                    margin: EdgeInsets.all(10),
+                    child: ListTile(
+                      leading: Icon(Icons.person),
+                      title: Text(users[index]['email']),
+                    ),
+                  );
+                },
+              ),
     );
   }
 }
