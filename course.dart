@@ -9,7 +9,7 @@ class Course {
   final String credithours;
   final String obtainedmarks;
   final String mysemester;
-  final String considerStatus; // Changed to lowerCamelCase
+  final String considerStatus;
 
   Course({
     required this.studentname,
@@ -36,7 +36,7 @@ class Course {
     credithours: json['credithours'] ?? '',
     obtainedmarks: json['obtainedmarks'] ?? '',
     mysemester: json['mysemester'] ?? '',
-    considerStatus: json['consider_status'] ?? '', // Map JSON key to Dart field
+    considerStatus: json['consider_status'] ?? '',
   );
 
   Map<String, dynamic> toJson() => {
@@ -50,6 +50,6 @@ class Course {
     'credithours': credithours,
     'obtainedmarks': obtainedmarks,
     'mysemester': mysemester,
-    'consider_status': considerStatus, // Map back to original JSON key
+    'consider_status': considerStatus,
   };
 }
