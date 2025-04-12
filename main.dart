@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'main_screen.dart';
+import 'student_screen.dart';
 
-void main() => runApp(const MyApp());
+void main() {
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -9,9 +11,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Student Courses',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: const MainScreen(),
+      title: 'Student Data App',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        useMaterial3: true,
+      ),
+      home: const StudentDataScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
