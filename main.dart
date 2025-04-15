@@ -1,643 +1,595 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:fluttertoast/fluttertoast.dart';
-import 'package:dropdown_search/dropdown_search.dart';
+import 'package:flutter/services.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
 
 void main() {
-  runApp(const FetchDataApp());
+  runApp(const QRApp());
 }
 
-class FetchDataApp extends StatelessWidget {
-  const FetchDataApp({super.key});
+class QRApp extends StatelessWidget {
+  const QRApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'FetchData',
+      title: 'QR Master',
       theme: ThemeData(
+        primarySwatch: Colors.indigo,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
+          seedColor: Colors.indigo,
           brightness: Brightness.light,
+          secondary: Colors.amber,
         ),
+        fontFamily: 'Poppins',
         useMaterial3: true,
-        cardTheme: CardTheme(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          margin: const EdgeInsets.symmetric(vertical: 8),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          filled: true,
-          fillColor: Colors.grey[50],
-        ),
       ),
+      home: const HomePage(),
       debugShowCheckedModeBanner: false,
-      home: const MainScreen(),
     );
   }
 }
 
-class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+class HomePage extends StatefulWidget {
+  const HomePage({Key? key}) : super(key: key);
 
   @override
-  State<MainScreen> createState() => _MainScreenState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
-  final List<Widget> _screens = [
-    const SubmitDataScreen(),
-    const ViewDataScreen(),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('FetchData',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            onPressed: () {
-              showAboutDialog(
-                context: context,
-                applicationName: 'FetchData',
-                applicationVersion: '1.0.0',
-                applicationLegalese: '© 2023 FetchData App',
-              );
-            },
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: _screens[_currentIndex],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) => setState(() => _currentIndex = index),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.upload),
-            label: 'Submit Data',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.download),
-            label: 'View Data',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class SubmitDataScreen extends StatefulWidget {
-  const SubmitDataScreen({super.key});
-
-  @override
-  State<SubmitDataScreen> createState() => _SubmitDataScreenState();
-}
-
-class _SubmitDataScreenState extends State<SubmitDataScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _userIdController = TextEditingController();
-  final _semesterNoController = TextEditingController();
-  final _creditsController = TextEditingController();
-  final _marksController = TextEditingController();
-  bool _isSubmitting = false;
-
-  List<Map<String, dynamic>> _courses = [];
-  String? _selectedCourseId;
-  String? _selectedCourseName;
-  bool _isLoadingCourses = false;
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _loadCourses();
+    _tabController = TabController(length: 2, vsync: this);
   }
 
-  Future<void> _loadCourses() async {
-    setState(() => _isLoadingCourses = true);
-
-    try {
-      final response = await http.get(
-        Uri.parse('https://bgnuerp.online/api/get_courses?user_id=12122'),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data is List) {
-          setState(() {
-            _courses = List<Map<String, dynamic>>.from(data);
-          });
-        }
-      } else {
-        _showError('Failed to load courses (Error ${response.statusCode})');
-      }
-    } catch (e) {
-      _showError('Failed to load courses: ${e.toString()}');
-    } finally {
-      setState(() => _isLoadingCourses = false);
-    }
-  }
-
-  Future<void> _submitGrade() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_selectedCourseId == null) {
-      _showError('Please select a course');
-      return;
-    }
-
-    setState(() => _isSubmitting = true);
-
-    try {
-      final response = await http.post(
-        Uri.parse('https://devtechtop.com/management/public/api/grades'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'user_id': _userIdController.text,
-          'course_id': _selectedCourseId,
-          'course_name': _selectedCourseName,
-          'semester_no': _semesterNoController.text,
-          'credit_hours': _creditsController.text,
-          'marks': _marksController.text,
-        }),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        _showSuccess('Data submitted successfully');
-        _formKey.currentState?.reset();
-        setState(() {
-          _selectedCourseId = null;
-          _selectedCourseName = null;
-        });
-      } else {
-        _handleErrorResponse(response);
-      }
-    } catch (e) {
-      _showError('Failed to connect to server. Please try again.');
-    } finally {
-      setState(() => _isSubmitting = false);
-    }
-  }
-
-  void _handleErrorResponse(http.Response response) {
-    try {
-      final errorData = json.decode(response.body);
-      if (errorData.containsKey('errors')) {
-        final errors = errorData['errors'] as Map<String, dynamic>;
-        final errorMessage = errors.entries
-            .map((e) => '${e.key}: ${e.value.join(', ')}')
-            .join('\n');
-        _showError(errorMessage);
-      } else {
-        _showError(
-            errorData['message'] ?? 'Submission failed. Please try again.');
-      }
-    } catch (e) {
-      _showError('Server returned an unexpected response');
-    }
-  }
-
-  void _showSuccess(String message) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: Toast.LENGTH_LONG,
-      backgroundColor: Colors.green,
-      textColor: Colors.white,
-    );
-  }
-
-  void _showError(String message) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: Toast.LENGTH_LONG,
-      backgroundColor: Colors.red,
-      textColor: Colors.white,
-    );
-  }
-
-  Widget _buildCourseDropdown() {
-    return _isLoadingCourses
-        ? const Center(child: CircularProgressIndicator())
-        : DropdownSearch<Map<String, dynamic>>(
-            items: _courses,
-            itemAsString: (course) =>
-                "${course['subject_code']} - ${course['subject_name']}",
-            selectedItem: _selectedCourseId != null
-                ? _courses.firstWhere(
-                    (course) => course['id'].toString() == _selectedCourseId,
-                    orElse: () => {},
-                  )
-                : null,
-            onChanged: (course) {
-              if (course != null) {
-                setState(() {
-                  _selectedCourseId = course['id'].toString();
-                  _selectedCourseName = course['subject_name'];
-                });
-              }
-            },
-            popupProps: PopupProps.menu(
-              showSearchBox: true,
-              searchFieldProps: TextFieldProps(
-                decoration: InputDecoration(
-                  hintText: 'Search course...',
-                  prefixIcon: const Icon(Icons.search),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              menuProps: MenuProps(
-                borderRadius: BorderRadius.circular(12),
-                elevation: 4,
-              ),
-              itemBuilder: (context, item, isSelected) => ListTile(
-                title:
-                    Text("${item['subject_code']} - ${item['subject_name']}"),
-              ),
-            ),
-            dropdownDecoratorProps: DropDownDecoratorProps(
-              dropdownSearchDecoration: InputDecoration(
-                labelText: 'Select Course',
-                hintText: 'Select a course',
-                prefixIcon: const Icon(Icons.school),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            validator: (value) =>
-                value == null ? 'Please select a course' : null,
-          );
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          Card(
-            child: Padding(
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
               padding: const EdgeInsets.all(16.0),
-              child: Column(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
-                    'Submit New Data',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Icon(
+                    Icons.qr_code_rounded,
+                    size: 40,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
-                  const SizedBox(height: 16),
-                  Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        TextFormField(
-                          controller: _userIdController,
-                          decoration: const InputDecoration(
-                            labelText: 'User ID',
-                            prefixIcon: Icon(Icons.person),
-                          ),
-                          validator: (value) => value?.isEmpty ?? true
-                              ? 'User ID is required'
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-                        _buildCourseDropdown(),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _semesterNoController,
-                          decoration: const InputDecoration(
-                            labelText: 'Semester Number',
-                            prefixIcon: Icon(Icons.format_list_numbered),
-                          ),
-                          validator: (value) => value?.isEmpty ?? true
-                              ? 'Semester is required'
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _creditsController,
-                          decoration: const InputDecoration(
-                            labelText: 'Credit Hours',
-                            prefixIcon: Icon(Icons.credit_score),
-                          ),
-                          keyboardType: TextInputType.number,
-                          validator: (value) {
-                            if (value?.isEmpty ?? true) {
-                              return 'Credit hours are required';
-                            }
-                            if (double.tryParse(value!) == null) {
-                              return 'Enter valid number';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _marksController,
-                          decoration: const InputDecoration(
-                            labelText: 'Marks',
-                            prefixIcon: Icon(Icons.score),
-                          ),
-                          keyboardType: TextInputType.number,
-                          validator: (value) {
-                            if (value?.isEmpty ?? true)
-                              return 'Marks are required';
-                            if (double.tryParse(value!) == null) {
-                              return 'Enter valid number';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            onPressed: _isSubmitting ? null : _submitGrade,
-                            child: _isSubmitting
-                                ? const CircularProgressIndicator()
-                                : const Text('SUBMIT DATA'),
-                          ),
-                        ),
-                      ],
+                  const SizedBox(width: 10),
+                  Text(
+                    'QR Master',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(25),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  borderRadius: BorderRadius.circular(25),
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.grey[700],
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                tabs: const [
+                  Tab(
+                    icon: Icon(Icons.qr_code_scanner),
+                    text: 'Scan QR',
+                  ),
+                  Tab(
+                    icon: Icon(Icons.qr_code),
+                    text: 'Create QR',
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: const [
+                  ScanQRScreen(),
+                  GenerateQRScreen(),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+class ScanQRScreen extends StatefulWidget {
+  const ScanQRScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ScanQRScreen> createState() => _ScanQRScreenState();
+}
+
+class _ScanQRScreenState extends State<ScanQRScreen> {
+  final MobileScannerController controller = MobileScannerController();
+  String scannedCode = '';
+  bool hasScanned = false;
 
   @override
   void dispose() {
-    _userIdController.dispose();
-    _semesterNoController.dispose();
-    _creditsController.dispose();
-    _marksController.dispose();
+    controller.dispose();
     super.dispose();
-  }
-}
-
-class ViewDataScreen extends StatefulWidget {
-  const ViewDataScreen({super.key});
-
-  @override
-  State<ViewDataScreen> createState() => _ViewDataScreenState();
-}
-
-class _ViewDataScreenState extends State<ViewDataScreen> {
-  final _userIdController = TextEditingController();
-  List<dynamic> _grades = [];
-  bool _isLoading = false;
-
-  Future<void> _fetchGrades() async {
-    if (_userIdController.text.isEmpty) {
-      _showError('Please enter User ID');
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _grades = [];
-    });
-
-    try {
-      final response = await http.post(
-        Uri.parse('https://devtechtop.com/management/public/api/select_data'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'user_id': _userIdController.text}),
-      );
-
-      _handleFetchResponse(response);
-    } catch (e) {
-      _showError('Failed to connect to server. Please try again.');
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  void _handleFetchResponse(http.Response response) {
-    debugPrint('Response status: ${response.statusCode}');
-    debugPrint('Response body: ${response.body}');
-
-    if (response.statusCode == 200) {
-      try {
-        final data = json.decode(response.body);
-        if (data is List) {
-          setState(() => _grades = data);
-        } else if (data is Map && data.containsKey('data')) {
-          final gradesData = data['data'];
-          if (gradesData is List) {
-            setState(() => _grades = gradesData);
-          } else {
-            _showError('Unexpected data format in response');
-            return;
-          }
-        } else {
-          _showError('Server returned unexpected format');
-          return;
-        }
-
-        if (_grades.isEmpty) {
-          _showInfo('No data found for this user');
-        }
-      } catch (e) {
-        _showError('Failed to parse server response');
-      }
-    } else {
-      _showError('Server error: ${response.statusCode}');
-    }
-  }
-
-  Future<void> _fetchLastUserId() async {
-    setState(() => _isLoading = true);
-    try {
-      final response = await http.get(
-        Uri.parse('https://devtechtop.com/management/public/api/grades'),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data is List && data.isNotEmpty) {
-          _userIdController.text = data.last['user_id'].toString();
-        } else if (data is Map && data.containsKey('data')) {
-          final grades = data['data'] as List;
-          if (grades.isNotEmpty) {
-            _userIdController.text = grades.last['user_id'].toString();
-          }
-        }
-      }
-    } catch (e) {
-      _showError('Failed to fetch last user ID');
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  void _showError(String message) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: Toast.LENGTH_LONG,
-      backgroundColor: Colors.red,
-      textColor: Colors.white,
-    );
-  }
-
-  void _showInfo(String message) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: Toast.LENGTH_LONG,
-      backgroundColor: Colors.blue,
-      textColor: Colors.white,
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                const Text(
-                  'View Data',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          hasScanned
+              ? Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    margin: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withAlpha(150),
+                          spreadRadius: 5,
+                          blurRadius: 7,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.check_circle,
+                          color: Colors.green,
+                          size: 60,
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'QR Code Scanned!',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Container(
+                          padding: const EdgeInsets.all(15),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Scanned Content:',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                scannedCode,
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Clipboard.setData(
+                                    ClipboardData(text: scannedCode));
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Copied to clipboard!'),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.copy),
+                              label: const Text('Copy'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    Theme.of(context).colorScheme.secondary,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  hasScanned = false;
+                                  scannedCode = '';
+                                  controller.start();
+                                });
+                              },
+                              icon: const Icon(Icons.qr_code_scanner),
+                              label: const Text('Scan Again'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(
+                )
+              : Column(
                   children: [
                     Expanded(
-                      child: TextField(
-                        controller: _userIdController,
-                        decoration: const InputDecoration(
-                          labelText: 'User ID',
-                          prefixIcon: Icon(Icons.person),
+                      flex: 5,
+                      child: Container(
+                        margin: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withAlpha(150),
+                              spreadRadius: 5,
+                              blurRadius: 7,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: MobileScanner(
+                            controller: controller,
+                            onDetect: (capture) {
+                              final List<Barcode> barcodes = capture.barcodes;
+                              if (barcodes.isNotEmpty && !hasScanned) {
+                                final code = barcodes.first.rawValue;
+                                if (code != null) {
+                                  setState(() {
+                                    scannedCode = code;
+                                    hasScanned = true;
+                                    controller.stop();
+                                  });
+                                }
+                              }
+                            },
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    IconButton.filled(
-                      onPressed: _fetchGrades,
-                      icon: const Icon(Icons.search),
-                      tooltip: 'Fetch Data',
-                    ),
-                    IconButton.filledTonal(
-                      onPressed: _fetchLastUserId,
-                      icon: const Icon(Icons.history),
-                      tooltip: 'Last User ID',
+                    Expanded(
+                      flex: 1,
+                      child: Center(
+                        child: Text(
+                          'Position the QR code within the frame to scan',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Expanded(
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _grades.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.data_exploration,
-                              size: 64, color: Colors.grey),
-                          SizedBox(height: 16),
-                          Text(
-                            'No data to display',
-                            style: TextStyle(fontSize: 18, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: _grades.length,
-                      itemBuilder: (context, index) {
-                        final grade = _grades[index];
-                        return Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  grade['course_name']?.toString() ??
-                                      'Unknown Course',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Chip(
-                                      label: Text(
-                                          'Semester: ${grade['semester_no'] ?? 'N/A'}'),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Chip(
-                                      label: Text(
-                                          'Credits: ${grade['credit_hours'] ?? 'N/A'}'),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                LinearProgressIndicator(
-                                  value: (double.tryParse(
-                                              grade['marks']?.toString() ??
-                                                  '0') ??
-                                          0) /
-                                      100,
-                                  backgroundColor: Colors.grey[200],
-                                  color: Theme.of(context).primaryColor,
-                                ),
-                                const SizedBox(height: 4),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: Text(
-                                    'Marks: ${grade['marks'] ?? 'N/A'}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-        ),
-      ],
+        ],
+      ),
     );
   }
+}
+
+class GenerateQRScreen extends StatefulWidget {
+  const GenerateQRScreen({Key? key}) : super(key: key);
+
+  @override
+  State<GenerateQRScreen> createState() => _GenerateQRScreenState();
+}
+
+class _GenerateQRScreenState extends State<GenerateQRScreen> {
+  final TextEditingController _textController = TextEditingController();
+  String qrData = '';
+  bool showQR = false;
+  final GlobalKey _qrKey = GlobalKey();
+  Color qrColor = Colors.black;
+  Color backgroundColor = Colors.white;
+  List<Color> availableColors = [
+    Colors.black,
+    Colors.blue,
+    Colors.red,
+    Colors.green,
+    Colors.purple,
+    Colors.orange,
+  ];
 
   @override
   void dispose() {
-    _userIdController.dispose();
+    _textController.dispose();
     super.dispose();
+  }
+
+  Future<void> _captureAndSharePng() async {
+    try {
+      RenderRepaintBoundary boundary =
+          _qrKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData != null) {
+        Uint8List pngBytes = byteData.buffer.asUint8List();
+
+        final tempDir = await getTemporaryDirectory();
+        final file = await File('${tempDir.path}/qr_code.png').create();
+        await file.writeAsBytes(pngBytes);
+
+        if (!mounted) return;
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          text: 'QR Code for: $qrData',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error sharing QR code: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withAlpha(150),
+                      spreadRadius: 3,
+                      blurRadius: 7,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: _textController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter text, URL, or any data...',
+                    border: InputBorder.none,
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _textController.clear();
+                        setState(() {
+                          showQR = false;
+                          qrData = '';
+                        });
+                      },
+                    ),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      showQR = value.isNotEmpty;
+                      qrData = value;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+              if (showQR) ...[
+                Text(
+                  'Your QR Code',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                RepaintBoundary(
+                  key: _qrKey,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: backgroundColor,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withAlpha(150),
+                          spreadRadius: 5,
+                          blurRadius: 7,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: QrImageView(
+                      data: qrData,
+                      version: QrVersions.auto,
+                      size: 200.0,
+                      gapless: true,
+                      eyeStyle: QrEyeStyle(
+                        eyeShape: QrEyeShape.square,
+                        color: qrColor,
+                      ),
+                      dataModuleStyle: QrDataModuleStyle(
+                        dataModuleShape: QrDataModuleShape.square,
+                        color: qrColor,
+                      ),
+                      backgroundColor: backgroundColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Customize',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('QR Color:'),
+                    const SizedBox(width: 10),
+                    Wrap(
+                      spacing: 8,
+                      children: availableColors.map((color) {
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              qrColor = color;
+                            });
+                          },
+                          child: Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: qrColor == color
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.grey,
+                                width: qrColor == color ? 2 : 1,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('Background:'),
+                    const SizedBox(width: 10),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        Colors.white,
+                        Colors.grey[200]!,
+                        Colors.yellow[100]!,
+                        Colors.blue[100]!,
+                        Colors.green[100]!,
+                      ].map((color) {
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              backgroundColor = color;
+                            });
+                          },
+                          child: Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: backgroundColor == color
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.grey,
+                                width: backgroundColor == color ? 2 : 1,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 30),
+                ElevatedButton.icon(
+                  onPressed: _captureAndSharePng,
+                  icon: const Icon(Icons.share),
+                  label: const Text('Share QR Code'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.all(40),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.qr_code_2,
+                        size: 100,
+                        color: Colors.grey[400],
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Enter text or URL above to generate a QR code',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
