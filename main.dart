@@ -1,595 +1,248 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:qr_flutter/qr_flutter.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
-import 'dart:ui' as ui;
-import 'package:flutter/rendering.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
-  runApp(const QRApp());
+  runApp(const UlocApp());
 }
 
-class QRApp extends StatelessWidget {
-  const QRApp({Key? key}) : super(key: key);
+class UlocApp extends StatelessWidget {
+  const UlocApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'QR Master',
+      title: 'Uloc',
       theme: ThemeData(
-        primarySwatch: Colors.indigo,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.indigo,
-          brightness: Brightness.light,
-          secondary: Colors.amber,
+        primarySwatch: Colors.green,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.green,
+          titleTextStyle: TextStyle(color: Colors.white, fontSize: 20),
+          iconTheme: IconThemeData(color: Colors.white),
         ),
-        fontFamily: 'Poppins',
-        useMaterial3: true,
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+        ),
+        cardTheme: CardTheme(
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Colors.grey),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Colors.green, width: 2),
+          ),
+          hintStyle: const TextStyle(color: Colors.grey),
+        ),
+        snackBarTheme: const SnackBarThemeData(
+          backgroundColor: Colors.green,
+          contentTextStyle: TextStyle(color: Colors.white),
+        ),
       ),
-      home: const HomePage(),
+      home: const MapScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+class MapScreen extends StatefulWidget {
+  const MapScreen({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<MapScreen> createState() => _MapScreenState();
 }
 
-class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _MapScreenState extends State<MapScreen> {
+  final MapController _mapController = MapController();
+  final TextEditingController _searchController = TextEditingController();
+  final LatLng _initialLocation = const LatLng(
+    31.4475,
+    73.6978,
+  ); // Baba Guru Nanak University
+  List<Marker> _markers = [];
+  bool _isSearching = false; // To indicate if a search is in progress
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.qr_code_rounded,
-                    size: 40,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'QR Master',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(25),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                indicator: BoxDecoration(
-                  borderRadius: BorderRadius.circular(25),
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.grey[700],
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-                tabs: const [
-                  Tab(
-                    icon: Icon(Icons.qr_code_scanner),
-                    text: 'Scan QR',
-                  ),
-                  Tab(
-                    icon: Icon(Icons.qr_code),
-                    text: 'Create QR',
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: const [
-                  ScanQRScreen(),
-                  GenerateQRScreen(),
-                ],
-              ),
-            ),
-          ],
-        ),
+    // Add initial marker
+    _markers = [
+      Marker(
+        point: _initialLocation,
+        width: 40,
+        height: 40,
+        child: const Icon(Icons.location_on, color: Colors.green, size: 40),
       ),
+    ];
+  }
+
+  Future<void> _searchLocation(String query) async {
+    if (query.isEmpty) return;
+
+    setState(() {
+      _isSearching = true; // Start searching
+    });
+
+    final url = Uri.parse(
+      'https://nominatim.openstreetmap.org/search?q=$query&format=json&polygon=1&addressdetails=1',
     );
-  }
-}
 
-class ScanQRScreen extends StatefulWidget {
-  const ScanQRScreen({Key? key}) : super(key: key);
-
-  @override
-  State<ScanQRScreen> createState() => _ScanQRScreenState();
-}
-
-class _ScanQRScreenState extends State<ScanQRScreen> {
-  final MobileScannerController controller = MobileScannerController();
-  String scannedCode = '';
-  bool hasScanned = false;
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          hasScanned
-              ? Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    margin: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withAlpha(150),
-                          spreadRadius: 5,
-                          blurRadius: 7,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.check_circle,
-                          color: Colors.green,
-                          size: 60,
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'QR Code Scanned!',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Container(
-                          padding: const EdgeInsets.all(15),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Scanned Content:',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                scannedCode,
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Clipboard.setData(
-                                    ClipboardData(text: scannedCode));
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Copied to clipboard!'),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.copy),
-                              label: const Text('Copy'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    Theme.of(context).colorScheme.secondary,
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                setState(() {
-                                  hasScanned = false;
-                                  scannedCode = '';
-                                  controller.start();
-                                });
-                              },
-                              icon: const Icon(Icons.qr_code_scanner),
-                              label: const Text('Scan Again'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : Column(
-                  children: [
-                    Expanded(
-                      flex: 5,
-                      child: Container(
-                        margin: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.grey.withAlpha(150),
-                              spreadRadius: 5,
-                              blurRadius: 7,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: MobileScanner(
-                            controller: controller,
-                            onDetect: (capture) {
-                              final List<Barcode> barcodes = capture.barcodes;
-                              if (barcodes.isNotEmpty && !hasScanned) {
-                                final code = barcodes.first.rawValue;
-                                if (code != null) {
-                                  setState(() {
-                                    scannedCode = code;
-                                    hasScanned = true;
-                                    controller.stop();
-                                  });
-                                }
-                              }
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 1,
-                      child: Center(
-                        child: Text(
-                          'Position the QR code within the frame to scan',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-        ],
-      ),
-    );
-  }
-}
-
-class GenerateQRScreen extends StatefulWidget {
-  const GenerateQRScreen({Key? key}) : super(key: key);
-
-  @override
-  State<GenerateQRScreen> createState() => _GenerateQRScreenState();
-}
-
-class _GenerateQRScreenState extends State<GenerateQRScreen> {
-  final TextEditingController _textController = TextEditingController();
-  String qrData = '';
-  bool showQR = false;
-  final GlobalKey _qrKey = GlobalKey();
-  Color qrColor = Colors.black;
-  Color backgroundColor = Colors.white;
-  List<Color> availableColors = [
-    Colors.black,
-    Colors.blue,
-    Colors.red,
-    Colors.green,
-    Colors.purple,
-    Colors.orange,
-  ];
-
-  @override
-  void dispose() {
-    _textController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _captureAndSharePng() async {
     try {
-      RenderRepaintBoundary boundary =
-          _qrKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData != null) {
-        Uint8List pngBytes = byteData.buffer.asUint8List();
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        if (data.isNotEmpty) {
+          final lat = double.parse(data[0]['lat']);
+          final lon = double.parse(data[0]['lon']);
+          final placeName = data[0]['display_name'];
 
-        final tempDir = await getTemporaryDirectory();
-        final file = await File('${tempDir.path}/qr_code.png').create();
-        await file.writeAsBytes(pngBytes);
-
-        if (!mounted) return;
-        await Share.shareXFiles(
-          [XFile(file.path)],
-          text: 'QR Code for: $qrData',
-        );
+          if (mounted) {
+            setState(() {
+              _isSearching = false; // Search complete
+              _markers = [
+                Marker(
+                  point: LatLng(lat, lon),
+                  width: 50,
+                  height: 50,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.location_pin,
+                        color: Colors.blue,
+                        size: 50,
+                      ),
+                      if (placeName.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.8),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            placeName.length > 20
+                                ? '${placeName.substring(0, 20)}...'
+                                : placeName,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ];
+              _mapController.move(LatLng(lat, lon), 15.0);
+            });
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              _isSearching = false; // Search complete (no results)
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No location found matching your search.'),
+              ),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isSearching = false; // Search complete (error)
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to fetch location data.')),
+          );
+        }
       }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error sharing QR code: $e')),
-      );
+      if (mounted) {
+        setState(() {
+          _isSearching = false; // Search complete (error)
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error during search: $e')));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+      appBar: AppBar(title: const Text('Explore Places')),
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _initialLocation,
+              initialZoom: 15.0,
+            ),
             children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(15),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withAlpha(150),
-                      spreadRadius: 3,
-                      blurRadius: 7,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: TextField(
-                  controller: _textController,
-                  decoration: InputDecoration(
-                    hintText: 'Enter text, URL, or any data...',
-                    border: InputBorder.none,
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _textController.clear();
-                        setState(() {
-                          showQR = false;
-                          qrData = '';
-                        });
-                      },
-                    ),
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      showQR = value.isNotEmpty;
-                      qrData = value;
-                    });
-                  },
-                ),
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.uloc.app',
               ),
-              const SizedBox(height: 20),
-              if (showQR) ...[
-                Text(
-                  'Your QR Code',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                RepaintBoundary(
-                  key: _qrKey,
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: backgroundColor,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withAlpha(150),
-                          spreadRadius: 5,
-                          blurRadius: 7,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: QrImageView(
-                      data: qrData,
-                      version: QrVersions.auto,
-                      size: 200.0,
-                      gapless: true,
-                      eyeStyle: QrEyeStyle(
-                        eyeShape: QrEyeShape.square,
-                        color: qrColor,
-                      ),
-                      dataModuleStyle: QrDataModuleStyle(
-                        dataModuleShape: QrDataModuleShape.square,
-                        color: qrColor,
-                      ),
-                      backgroundColor: backgroundColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Customize',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('QR Color:'),
-                    const SizedBox(width: 10),
-                    Wrap(
-                      spacing: 8,
-                      children: availableColors.map((color) {
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              qrColor = color;
-                            });
-                          },
-                          child: Container(
-                            width: 30,
-                            height: 30,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: qrColor == color
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Colors.grey,
-                                width: qrColor == color ? 2 : 1,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('Background:'),
-                    const SizedBox(width: 10),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        Colors.white,
-                        Colors.grey[200]!,
-                        Colors.yellow[100]!,
-                        Colors.blue[100]!,
-                        Colors.green[100]!,
-                      ].map((color) {
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              backgroundColor = color;
-                            });
-                          },
-                          child: Container(
-                            width: 30,
-                            height: 30,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: backgroundColor == color
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Colors.grey,
-                                width: backgroundColor == color ? 2 : 1,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 30),
-                ElevatedButton.icon(
-                  onPressed: _captureAndSharePng,
-                  icon: const Icon(Icons.share),
-                  label: const Text('Share QR Code'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                  ),
-                ),
-              ] else ...[
-                Container(
-                  padding: const EdgeInsets.all(40),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.qr_code_2,
-                        size: 100,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'Enter text or URL above to generate a QR code',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              MarkerLayer(markers: _markers),
             ],
           ),
-        ),
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search for a location...',
+                    border: InputBorder.none,
+                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    suffixIcon:
+                        _isSearching
+                            ? const CircularProgressIndicator() // Show progress indicator
+                            : IconButton(
+                              icon: const Icon(Icons.clear, color: Colors.grey),
+                              onPressed: () {
+                                _searchController.clear();
+                                if (_markers.length > 1) {
+                                  setState(() {
+                                    _markers.removeRange(1, _markers.length);
+                                    _mapController.move(_initialLocation, 15.0);
+                                  });
+                                }
+                              },
+                            ),
+                  ),
+                  onSubmitted: (query) => _searchLocation(query),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          _mapController.move(_initialLocation, 15.0);
+        },
+        child: const Icon(Icons.my_location),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
