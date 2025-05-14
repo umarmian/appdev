@@ -6,13 +6,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: const FirebaseOptions(
-      apiKey: "AIzaSyCfrV...your_key...",
-      authDomain: "fir-afc36.firebaseapp.com",
-      databaseURL: "https://fir-afc36-default-rtdb.firebaseio.com",
-      projectId: "fir-afc36",
-      storageBucket: "fir-afc36.appspot.com",
-      messagingSenderId: "9441xxxxxxx",
-      appId: "1:9441xxxxxxx:web:xxxxxx",
+      apiKey: "YOUR_API_KEY",
+      appId: "YOUR_APP_ID",
+      messagingSenderId: "YOUR_SENDER_ID",
+      projectId: "kanwal-3a599",
+      databaseURL: "https://kanwal-3a599-default-rtdb.firebaseio.com/",
     ),
   );
   runApp(const MyApp());
@@ -20,107 +18,129 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Firebase Chat',
+      title: 'Firebase Demo',
       theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
+        primarySwatch: Colors.blue,
       ),
-      home: const HomePage(),
+      home: const FirebaseDemoScreen(),
     );
   }
 }
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class FirebaseDemoScreen extends StatefulWidget {
+  const FirebaseDemoScreen({super.key});
+
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<FirebaseDemoScreen> createState() => _FirebaseDemoScreenState();
 }
 
-class _HomePageState extends State<HomePage> {
-  final TextEditingController _messageController = TextEditingController();
-  final DatabaseReference _messagesRef =
-  FirebaseDatabase.instance.ref().child('messages');
+class _FirebaseDemoScreenState extends State<FirebaseDemoScreen> {
+  final TextEditingController _textController = TextEditingController();
+  final DatabaseReference _databaseRef = FirebaseDatabase.instance.ref();
+  List<String> _submittedData = [];
 
-  void _sendMessage() {
-    final text = _messageController.text.trim();
-    if (text.isNotEmpty) {
-      _messagesRef.push().set({
-        'text': text,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-      _messageController.clear();
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      DatabaseEvent event = await _databaseRef.once();
+      if (event.snapshot.value != null) {
+        Map<dynamic, dynamic> values = event.snapshot.value as Map;
+        setState(() {
+          _submittedData = values.values.cast<String>().toList();
+        });
+      }
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading data: $error')),
+      );
     }
   }
 
-  void _deleteMessage(String key) {
-    _messagesRef.child(key).remove();
+  Future<void> _submitData() async {
+    if (_textController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter some text')),
+      );
+      return;
+    }
+
+    try {
+      String newKey = _databaseRef.push().key!;
+      await _databaseRef.child(newKey).set(_textController.text);
+
+      setState(() {
+        _submittedData.add(_textController.text);
+        _textController.clear();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Data submitted successfully!')),
+      );
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error submitting data: $error')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Firebase Chat')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      labelText: 'Type your message',
+      appBar: AppBar(
+        title: const Text('Firebase Realtime Database'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: _textController,
+              decoration: const InputDecoration(
+                labelText: 'Enter your data',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _submitData,
+              child: const Text('Submit'),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Submitted Data:',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _submittedData.length,
+                itemBuilder: (context, index) {
+                  return Card(
+                    child: ListTile(
+                      title: Text(_submittedData[index]),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: _sendMessage,
-                  child: const Icon(Icons.send),
-                ),
-              ],
-            ),
-          ),
-          const Divider(),
-          Expanded(
-            child: StreamBuilder(
-              stream: _messagesRef.orderByChild('timestamp').onValue,
-              builder: (context, snapshot) {
-                if (snapshot.hasData &&
-                    snapshot.data!.snapshot.value != null) {
-                  final Map<String, dynamic> data =
-                  Map<String, dynamic>.from(snapshot.data!.snapshot.value as Map);
-                  final messages = data.entries.toList()
-                    ..sort((a, b) =>
-                        a.value['timestamp'].compareTo(b.value['timestamp']));
-                  return ListView.builder(
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final entry = messages[index];
-                      return ListTile(
-                        title: Text(entry.value['text']),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete),
-                          onPressed: () => _deleteMessage(entry.key),
-                        ),
-                      );
-                    },
                   );
-                } else {
-                  return const Center(child: Text("No messages yet."));
-                }
-              },
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
-}
 
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+}
